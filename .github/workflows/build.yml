@@ -11,7 +11,7 @@ jobs:
         run: |
           NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
           CXX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++"
-          "$CXX" -shared -fPIC -std=c++17 -O2 -I aml -o libRealWeapons.so /main.cpp -llog -ldl
+          "$CXX" -shared -fPIC -std=c++17 -O2 -I aml -o libRealWeapons.so main.cpp -llog -ldl
           ls -l libRealWeapons.so
       - uses: actions/upload-artifact@v4
         with:
