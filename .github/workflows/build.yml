@@ -7,7 +7,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Cabeceras de AML
         run: git clone --depth 1 https://github.com/RusJJ/AndroidModLoader.git aml
-      - name: Compilar ARM64 y ARM32
+      - name: Compilar RealWeapons2 ARM64 y ARM32
         shell: bash
         run: |
           set -euo pipefail
@@ -17,19 +17,19 @@ jobs:
 
           "$TOOLCHAIN/aarch64-linux-android24-clang++" \
             -shared -fPIC -std=c++17 -O2 -static-libstdc++ \
-            -I aml -Wl,-soname,libRealWeapons.so \
-            -o dist/arm64-v8a/libRealWeapons.so main.cpp -llog -ldl
+            -I aml -Wl,-soname,libRealWeapons2.so \
+            -o dist/arm64-v8a/libRealWeapons2.so main_v2.cpp -llog -ldl
 
           "$TOOLCHAIN/armv7a-linux-androideabi24-clang++" \
             -shared -fPIC -std=c++17 -O2 -static-libstdc++ \
-            -I aml -Wl,-soname,libRealWeapons.so \
-            -o dist/armeabi-v7a/libRealWeapons.so main.cpp -llog -ldl
+            -I aml -Wl,-soname,libRealWeapons2.so \
+            -o dist/armeabi-v7a/libRealWeapons2.so main_v2.cpp -llog -ldl
 
-          readelf -hW dist/arm64-v8a/libRealWeapons.so | grep -q 'Class:.*ELF64'
-          readelf -hW dist/arm64-v8a/libRealWeapons.so | grep -q 'Machine:.*AArch64'
-          readelf -hW dist/armeabi-v7a/libRealWeapons.so | grep -q 'Class:.*ELF32'
-          readelf -hW dist/armeabi-v7a/libRealWeapons.so | grep -q 'Machine:.*ARM'
-          for so in dist/arm64-v8a/libRealWeapons.so dist/armeabi-v7a/libRealWeapons.so; do
+          readelf -hW dist/arm64-v8a/libRealWeapons2.so | grep -q 'Class:.*ELF64'
+          readelf -hW dist/arm64-v8a/libRealWeapons2.so | grep -q 'Machine:.*AArch64'
+          readelf -hW dist/armeabi-v7a/libRealWeapons2.so | grep -q 'Class:.*ELF32'
+          readelf -hW dist/armeabi-v7a/libRealWeapons2.so | grep -q 'Machine:.*ARM'
+          for so in dist/arm64-v8a/libRealWeapons2.so dist/armeabi-v7a/libRealWeapons2.so; do
             if readelf -dW "$so" | grep -Fq 'libc++_shared.so'; then
               echo "::error::$so depende de libc++_shared.so"
               exit 1
@@ -38,9 +38,9 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: libRealWeapons-arm64
-          path: dist/arm64-v8a/libRealWeapons.so
+          name: RealWeapons2-arm64
+          path: dist/arm64-v8a/libRealWeapons2.so
       - uses: actions/upload-artifact@v4
         with:
-          name: libRealWeapons-arm32
-          path: dist/armeabi-v7a/libRealWeapons.so
+          name: RealWeapons2-arm32
+          path: dist/armeabi-v7a/libRealWeapons2.so
