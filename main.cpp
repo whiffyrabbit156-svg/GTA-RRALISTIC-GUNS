@@ -100,7 +100,7 @@ static void LOG(const char* fmt, ...) {
 }
 
 // RealWeapons.cfg (opcional, una linea por opcion):  frame_hook=game|hud|timer|idle   projectiles=0|1   damage=0|1
-static std::string g_cfgHook = "game";
+static std::string g_cfgHook = "idle";
 static int g_cfgProj = 1, g_cfgDmg = 1;
 static void readCfg() {
     if (g_dir.empty()) return;
@@ -387,10 +387,13 @@ static bool hk_FIH(void* self, void* shooter, V* origin, V* muzzle, void* tgtEnt
 }
 
 static int g_frames = 0; static bool g_dmgDone = false, g_guardCleared = false;
-typedef void (*Frame0_t)();
-static Frame0_t orig_Frame0 = nullptr;
+typedef void (*FrameHook_t)(void*);
+static FrameHook_t orig_FrameHook = nullptr;
 static void frameTick();
-static void hk_Frame0() { orig_Frame0(); frameTick(); }
+static void hk_FrameHook(void* self) {
+    if (orig_FrameHook) orig_FrameHook(self);
+    frameTick();
+}
 static void hk_Idle(void* a, bool b) { orig_Idle(a, b); frameTick(); }
 static void frameTick() {
     double now = nowSec();
@@ -408,6 +411,7 @@ static void frameTick() {
 
 static bool hookAt(const Sym* s, void* repl, void** orig, const char* tag) {
     if (!s) { LOG("HOOK %s: simbolo no encontrado", tag); return false; }
+    if (!aml) { LOG("HOOK %s: interfaz AML no disponible", tag); return false; }
     bool ok = aml->Hook((void*)s->addr, repl, orig);
     LOG("HOOK %s: %s (%s)", tag, ok ? "ok" : "FALLO", s->name.c_str());
     return ok;
@@ -416,11 +420,11 @@ static bool hookAt(const Sym* s, void* repl, void** orig, const char* tag) {
 extern "C" void OnModLoad() {
     LOG("RealWeapons 1.1 iniciando");
     readCfg();
+    if (!aml) { LOG("Interfaz AML no disponible; mod desactivado"); return; }
     if (bootGuardTripped()) {
         LOG("MODO SEGURO: el arranque anterior no termino. El mod no se activa. Borra RealWeapons.boot para reintentar.");
         return;
     }
-    bootGuardArm();
     dl_iterate_phdr(phdrCb, nullptr);
     LOG("simbolos leidos de libGTASA.so: %zu", g_syms.size());
     if (g_syms.empty()) { LOG("No se pudo leer la tabla de simbolos. Mod desactivado."); return; }
@@ -470,9 +474,16 @@ extern "C" void OnModLoad() {
 #endif
     bool hooked = false;
     if (g_cfgHook == "idle") hooked = hookAt(sIdle, (void*)hk_Idle, (void**)&orig_Idle, "Idle");
-    else if (g_cfgHook == "hud") hooked = hookAt(sHud, (void*)hk_Frame0, (void**)&orig_Frame0, "CHud::Draw");
-    else if (g_cfgHook == "timer") hooked = hookAt(sTimer, (void*)hk_Frame0, (void**)&orig_Frame0, "CTimer::Update");
-    else hooked = hookAt(sGame, (void*)hk_Frame0, (void**)&orig_Frame0, "CGame::Process");
-    if (!hooked) { LOG("sin hook por frame: se desactivan proyectiles y dano"); g_proj = false; }
+    else if (g_cfgHook == "hud") hooked = hookAt(sHud, (void*)hk_FrameHook, (void**)&orig_FrameHook, "CHud::Draw");
+    else if (g_cfgHook == "timer") hooked = hookAt(sTimer, (void*)hk_FrameHook, (void**)&orig_FrameHook, "CTimer::Update");
+    else hooked = hookAt(sGame, (void*)hk_FrameHook, (void**)&orig_FrameHook, "CGame::Process");
+    if (!hooked) {
+        LOG("sin hook por frame: se desactivan proyectiles y dano");
+        g_proj = false;
+        bootGuardClear();
+    } else {
+        bootGuardArm();
+    }
     LOG("proyectiles=%d dano=%d hook=%s", g_proj ? 1 : 0, g_cfgDmg, g_cfgHook.c_str());
 }
+
