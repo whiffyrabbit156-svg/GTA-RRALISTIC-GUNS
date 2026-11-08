@@ -249,7 +249,7 @@ static bool modelIn(const std::vector<int>& models, int id) {
 static int factionWeapon(int model, int original) {
     if (modelIn(g_swatModels, model)) {
         if (original == 25 || original == 26 || original == 27) return 86; // AA-12
-        if (original == 30 || original == 31 || original == 33) return 82; // DKMG19
+        if (original == 30 || original == 31 || original == 33) return (model & 1) ? 82 : 87; // DKMG19/VFAG55
     }
     if (modelIn(g_policeModels, model)) {
         if (original == 22 || original == 23 || original == 24) return 81; // Python
@@ -257,13 +257,14 @@ static int factionWeapon(int model, int original) {
     }
     if (modelIn(g_russianMafiaModels, model)) {
         if (original == 22 || original == 23 || original == 24) return 80; // Luger
-        if (original == 28 || original == 29 || original == 32) return 83; // M3 Grease Gun
-        if (original == 30 || original == 31 || original == 33) return 87; // Vom Feuer rifle
+        if (original == 28 || original == 29 || original == 32) return 84; // SIG AMT
+        if (original == 30 || original == 31 || original == 33) return (model & 1) ? 82 : 88; // DKMG19/VFGG55
     }
     if (modelIn(g_gangModels, model)) {
         if (original == 22 || original == 23 || original == 24) return 89; // Skorpion
-        if (original == 28 || original == 29 || original == 32) return (model & 1) ? 85 : 83; // Sten/M3
+        if (original == 28 || original == 29 || original == 32) return model % 3 == 0 ? 83 : (model % 3 == 1 ? 84 : 85); // M3/SIG/Sten
         if (original == 25 || original == 26 || original == 27) return 90; // Winchester
+        if (original == 30 || original == 31 || original == 33) return 87; // VFAG55
     }
     return original;
 }
