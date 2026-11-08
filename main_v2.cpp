@@ -21,7 +21,7 @@
 #include <vector>
 #include <string>
 
-MYMOD(net.realweapons.gtasa2, RealWeapons2, 2.0, RealWeapons2)
+MYMOD(net.realweapons.gtasa2, RealWeapons2, 2.1, RealWeapons2)
 BEGIN_DEPLIST()
 END_DEPLIST()
 
@@ -83,8 +83,11 @@ static std::string g_dir;
 static bool g_dirTried = false;
 static void pickDir() {
     g_dirTried = true;
-    static const char* DIRS[] = {"/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/",
+    static const char* DIRS[] = {"/storage/emulated/0/Android_unprotected/data/com.rockstargames.gtasa/files/",
+                                 "/sdcard/Android_unprotected/data/com.rockstargames.gtasa/files/",
+                                 "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/",
                                  "/sdcard/Android/data/com.rockstargames.gtasa/files/",
+                                 "/storage/emulated/0/Android_unprotected/data/com.rockstargames.gtasa/",
                                  "/storage/emulated/0/Android/data/com.rockstargames.gtasa/"};
     for (const char* d : DIRS) {
         FILE* f = fopen((std::string(d) + "RealWeapons2.log").c_str(), "w");
@@ -94,7 +97,7 @@ static void pickDir() {
 static void LOG(const char* fmt, ...) {
     char buf[512];
     va_list ap; va_start(ap, fmt); vsnprintf(buf, sizeof(buf), fmt, ap); va_end(ap);
-    __android_log_print(ANDROID_LOG_INFO, "RealWeapons", "%s", buf);
+    __android_log_print(ANDROID_LOG_INFO, "RealWeapons2", "%s", buf);
     if (!g_dirTried) pickDir();
     if (g_log) { fprintf(g_log, "%s\n", buf); fflush(g_log); }
 }
@@ -153,7 +156,9 @@ static int phdrCb(struct dl_phdr_info* info, size_t, void*) {
     if (hash) count = hash[1];
     else if (gnu) {
         uint32_t nb = gnu[0], off = gnu[1], bloom = gnu[2];
-        const uint32_t* buckets = gnu + 4 + bloom * 2;  // bloom de 64 bits = 2 palabras
+        // GNU_HASH usa una palabra bloom del ancho del ABI: 2 words en ELF64,
+        // 1 word en ELF32. Saltar siempre 2 corrompia el recorrido ARM32.
+        const uint32_t* buckets = gnu + 4 + bloom * (sizeof(ElfW(Addr)) / sizeof(uint32_t));
         const uint32_t* chain = buckets + nb;
         uint32_t mx = 0;
         for (uint32_t i = 0; i < nb; i++) if (buckets[i] > mx) mx = buckets[i];
@@ -419,7 +424,7 @@ static bool hookAt(const Sym* s, void* repl, void** orig, const char* tag) {
 }
 
 extern "C" void OnModLoad() {
-    LOG("RealWeapons2 2.0 iniciando");
+    LOG("RealWeapons2 2.1 iniciando");
     readCfg();
     if (!aml) { LOG("Interfaz AML no disponible; mod desactivado"); return; }
     if (bootGuardTripped()) {
