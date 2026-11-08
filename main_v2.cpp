@@ -71,6 +71,18 @@ static const WP WPS[] = {
     {31, 1.4f, 0.050f, 0.8f, 0.35f, 900.f, 4},  // m4
     {33, 2.0f, 0.080f, 0.5f, 1.00f, 850.f, 6},  // rifle
     {34, 2.5f, 0.140f, 0.3f, 1.50f, 950.f, 8},  // sniper
+    // FLA add-on weapon IDs: 80-90 (see data/extra_weapons.json).
+    {80, 1.15f, 0.055f, 0.7f, 0.35f, 380.f, 0}, // Luger
+    {81, 1.10f, 0.125f, 0.5f, 0.75f, 380.f, 0}, // Colt Python
+    {82, 1.30f, 0.080f, 1.0f, 0.65f, 900.f, 5}, // DKMG19
+    {83, 1.15f, 0.045f, 1.5f, 0.45f, 300.f, 1}, // M3 Grease Gun
+    {84, 1.10f, 0.040f, 1.2f, 0.40f, 360.f, 0}, // SIG AMT
+    {85, 1.10f, 0.040f, 1.5f, 0.45f, 365.f, 0}, // Sten
+    {86, 1.00f, 0.150f, 2.0f, 1.10f, 370.f, 2}, // AA-12
+    {87, 1.25f, 0.060f, 0.9f, 0.50f, 715.f, 4}, // Vom Feuer assault rifle
+    {88, 1.35f, 0.075f, 0.7f, 0.65f, 760.f, 5}, // Vom Feuer battle rifle
+    {89, 1.10f, 0.035f, 1.5f, 0.40f, 330.f, 0}, // VZ Skorpion
+    {90, 1.20f, 0.140f, 1.8f, 0.95f, 380.f, 2}, // Winchester 1897
 };
 static const WP* findWP(int id) {
     for (const WP& w : WPS) if (w.id == id) return &w;
@@ -350,7 +362,10 @@ static bool hk_FIH(void* self, void* shooter, V* origin, V* muzzle, void* tgtEnt
         return orig_FIH(self, shooter, origin, muzzle, tgtEnt, target, drive, a6, a7);
     int type = *(int*)self;
     const WP* w = findWP(type);
-    if (!w || shooter != g_FindPlayerPed(0) || g_bullets.size() >= (size_t)MAX_BULLETS)
+    // Keep vanilla NPC weapons unchanged. Add-on weapons use physical rounds
+    // for both the player and NPCs so faction weapon pools share the same behavior.
+    bool isPlayer = shooter == g_FindPlayerPed(0);
+    if (!w || (!isPlayer && type < 80) || g_bullets.size() >= (size_t)MAX_BULLETS)
         return orig_FIH(self, shooter, origin, muzzle, tgtEnt, target, drive, a6, a7);
     V dir = *target - *origin;
     if (len(dir) < 0.5f) return orig_FIH(self, shooter, origin, muzzle, tgtEnt, target, drive, a6, a7);
@@ -506,6 +521,6 @@ extern "C" void OnModLoad() {
     } else {
         bootGuardArm();
     }
-    LOG("proyectiles=%d dano=%d hook=%s", g_proj ? 1 : 0, g_cfgDmg, g_cfgHook.c_str());
+    LOG("proyectiles=%d dano=%d armas_addon=80-90 hook=%s", g_proj ? 1 : 0, g_cfgDmg, g_cfgHook.c_str());
 }
 
