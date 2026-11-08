@@ -117,6 +117,21 @@ static void LOG(const char* fmt, ...) {
 // RealWeapons2.cfg (opcional, una linea por opcion):  frame_hook=game|hud|timer|idle   projectiles=0|1   damage=0|1
 static std::string g_cfgHook = "game";
 static int g_cfgProj = 1, g_cfgDmg = 1;
+static std::vector<int> g_policeModels, g_swatModels, g_gangModels, g_russianMafiaModels;
+static void parseModelList(const char* value, std::vector<int>& out) {
+    out.clear();
+    const char* p = value;
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == ',') ++p;
+        if (!*p) break;
+        char* end = nullptr;
+        long id = strtol(p, &end, 10);
+        if (end == p) { while (*p && *p != ',') ++p; continue; }
+        if (id >= 0 && id <= 65535) out.push_back((int)id);
+        p = end;
+        while (*p && *p != ',') ++p;
+    }
+}
 static void readCfg() {
     if (g_dir.empty()) return;
     FILE* f = fopen((g_dir + "RealWeapons2.cfg").c_str(), "r");
@@ -128,6 +143,10 @@ static void readCfg() {
             if (!strcmp(k, "frame_hook")) g_cfgHook = v;
             else if (!strcmp(k, "projectiles")) g_cfgProj = atoi(v);
             else if (!strcmp(k, "damage")) g_cfgDmg = atoi(v);
+            else if (!strcmp(k, "police_models")) parseModelList(v, g_policeModels);
+            else if (!strcmp(k, "swat_models")) parseModelList(v, g_swatModels);
+            else if (!strcmp(k, "gang_models")) parseModelList(v, g_gangModels);
+            else if (!strcmp(k, "russian_mafia_models")) parseModelList(v, g_russianMafiaModels);
         }
     }
     fclose(f);
@@ -203,6 +222,8 @@ typedef bool  (*FIH_t)(void*, void*, V*, V*, void*, V*, V*, bool, bool);
 typedef bool  (*LOS_t)(const V&, const V&, ColPoint&, void*&, bool, bool, bool, bool, bool, bool, bool, bool);
 typedef void* (*FindPlayerPed_t)(int);
 typedef void* (*GetWeaponInfo_t)(int, int);
+typedef int   (*GetModelIndex_t)(void*);
+typedef void  (*GiveWeapon_t)(void*, int, unsigned int, bool);
 typedef void  (*CamShake_t)(void*, float, float, float, float);
 typedef void  (*AddTrace_t)(V*, V*, float, uint32_t, uint8_t);
 typedef void  (*Idle_t)(void*, bool);
@@ -212,12 +233,50 @@ static Idle_t          orig_Idle = nullptr;
 static LOS_t           g_LOS = nullptr;
 static FindPlayerPed_t g_FindPlayerPed = nullptr;
 static GetWeaponInfo_t g_GetWeaponInfo = nullptr;
+static GetModelIndex_t g_GetModelIndex = nullptr;
 static CamShake_t      g_CamShake = nullptr;
 static AddTrace_t      g_AddTrace = nullptr;
 static void*           g_TheCamera = nullptr;
 static void**          g_pIgnore = nullptr;     // CWorld::pIgnoreEntity
 static bool g_proj = false, g_dmgOK = false;
 static bool g_replay = false;
+static GiveWeapon_t orig_GiveWeapon = nullptr;
+
+static bool modelIn(const std::vector<int>& models, int id) {
+    for (int value : models) if (value == id) return true;
+    return false;
+}
+static int factionWeapon(int model, int original) {
+    if (modelIn(g_swatModels, model)) {
+        if (original == 25 || original == 26 || original == 27) return 86; // AA-12
+        if (original == 30 || original == 31 || original == 33) return 82; // DKMG19
+    }
+    if (modelIn(g_policeModels, model)) {
+        if (original == 22 || original == 23 || original == 24) return 81; // Python
+        if (original == 25 || original == 26 || original == 27) return 90; // Winchester
+    }
+    if (modelIn(g_russianMafiaModels, model)) {
+        if (original == 22 || original == 23 || original == 24) return 80; // Luger
+        if (original == 28 || original == 29 || original == 32) return 83; // M3 Grease Gun
+        if (original == 30 || original == 31 || original == 33) return 87; // Vom Feuer rifle
+    }
+    if (modelIn(g_gangModels, model)) {
+        if (original == 22 || original == 23 || original == 24) return 89; // Skorpion
+        if (original == 28 || original == 29 || original == 32) return (model & 1) ? 85 : 83; // Sten/M3
+        if (original == 25 || original == 26 || original == 27) return 90; // Winchester
+    }
+    return original;
+}
+static void hk_GiveWeapon(void* ped, int weaponType, unsigned int ammo, bool likeUnused) {
+    if (orig_GiveWeapon && ped && g_GetModelIndex && g_FindPlayerPed && ped != g_FindPlayerPed(0)) {
+        int model = g_GetModelIndex(ped);
+        int selected = factionWeapon(model, weaponType);
+        if (selected != weaponType)
+            LOG("FACCIÓN: ped_model=%d arma=%d -> addon=%d", model, weaponType, selected);
+        weaponType = selected;
+    }
+    if (orig_GiveWeapon) orig_GiveWeapon(ped, weaponType, ammo, likeUnused);
+}
 
 // ------------------------------- ESTADO ------------------------------------
 struct Bullet {
@@ -466,6 +525,11 @@ extern "C" void OnModLoad() {
     const Sym* sLOS  = findPrefix("_ZN6CWorld18ProcessLineOfSight");
     const Sym* sFPP  = findPrefix("_Z13FindPlayerPed");
     const Sym* sGWI  = findPrefix("_ZN11CWeaponInfo13GetWeaponInfo");
+    const Sym* sGive = findPrefix("_ZN4CPed10GiveWeaponE");
+    const Sym* sGetModel = findPrefix("_ZNK7CEntity13GetModelIndex");
+    if (!sGetModel) sGetModel = findPrefix("_ZN7CEntity13GetModelIndex");
+    if (!sGetModel) sGetModel = findPrefix("_ZNK7CEntity12GetModelIndex");
+    if (!sGetModel) sGetModel = findPrefix("_ZN7CEntity12GetModelIndex");
     const Sym* sCS   = findPrefix("_ZN7CCamera8CamShake");
     const Sym* sTR   = findPrefix("_ZN13CBulletTraces8AddTrace");
     const Sym* sCam  = nullptr;
@@ -473,11 +537,21 @@ extern "C" void OnModLoad() {
     const Sym* sIgn  = findPrefix("_ZN6CWorld13pIgnoreEntity");
 
     if (sGWI) g_GetWeaponInfo = (GetWeaponInfo_t)sGWI->addr;
+    if (sGetModel) g_GetModelIndex = (GetModelIndex_t)sGetModel->addr;
     if (sCS && endsWith(sCS->name, "CamShakeEffff") && sCam) { g_CamShake = (CamShake_t)sCS->addr; g_TheCamera = (void*)sCam->addr; }
     else LOG("CamShake: no disponible (sacudida desactivada)");
     if (sTR && endsWith(sTR->name, "AddTraceEP7CVectorS1_fjh")) g_AddTrace = (AddTrace_t)sTR->addr;
     else LOG("AddTrace: no disponible (sin trazador visible)");
     if (sIgn) g_pIgnore = (void**)sIgn->addr;
+
+    if (!g_policeModels.empty() || !g_swatModels.empty() || !g_gangModels.empty() || !g_russianMafiaModels.empty()) {
+        if (g_GetModelIndex && sGive && hookAt(sGive, (void*)hk_GiveWeapon, (void**)&orig_GiveWeapon, "CPed::GiveWeapon"))
+            LOG("distribucion de armas por faccion habilitada");
+        else
+            LOG("distribucion por faccion desactivada: falta simbolo o hook de modelo");
+    } else {
+        LOG("distribucion por faccion desactivada: listas de modelos vacias en RealWeapons2.cfg");
+    }
 
 #if ENABLE_PROJECTILES
     if (!g_cfgProj) LOG("projectiles=0 en cfg");
