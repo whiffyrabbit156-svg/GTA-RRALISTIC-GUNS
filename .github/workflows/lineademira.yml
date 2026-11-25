@@ -1,0 +1,41 @@
+name: Linea de Mira Android
+on:
+  push:
+    branches: [lineademira-custom-aim-v2]
+    paths:
+      - 'lineademira_v2/**'
+      - '.github/workflows/lineademira.yml'
+  workflow_dispatch:
+jobs:
+  build-armv7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar plugin AML ARMv7
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:?ANDROID_NDK_HOME no está definido}}"
+          TOOLCHAIN="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          mkdir -p package/mods package/CLEO package/configs
+          "$TOOLCHAIN/armv7a-linux-androideabi24-clang++" \
+            -shared -fPIC -std=c++17 -O2 -static-libstdc++ \
+            -Wl,-soname,libLineaDeMira.so \
+            -o package/mods/libLineaDeMira.so lineademira_v2/src/mira.cpp -ldl -lm
+          readelf -hW package/mods/libLineaDeMira.so | grep -q 'Class:.*ELF32'
+          readelf -hW package/mods/libLineaDeMira.so | grep -q 'Machine:.*ARM'
+          if readelf -dW package/mods/libLineaDeMira.so | grep -Fq 'libc++_shared.so'; then
+            echo '::error::El plugin no debe depender de libc++_shared.so'
+            exit 1
+          fi
+          cp lineademira_v2/CLEO/*.csa package/CLEO/
+          cp lineademira_v2/configs/LineaDeMira.ini package/configs/
+          cp lineademira_v2/LEEME_ES.txt package/
+          mkdir -p package/src
+          cp lineademira_v2/src/mira.cpp lineademira_v2/src/mira.h package/src/
+          cd package
+          zip -qr ../LineaDeMira_Android_2.0_ARMv7.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LineaDeMira_Android_2.0_ARMv7
+          path: LineaDeMira_Android_2.0_ARMv7.zip
