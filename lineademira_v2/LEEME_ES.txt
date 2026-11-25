@@ -1,23 +1,26 @@
-LINEA DE MIRA ANDROID 2.0 — FUENTES Y COMPILACION
-
-ESTADO
-Este archivo contiene el codigo fuente actualizado y el flujo de compilacion ARMv7 para GTA SA Android 2.00 + AML. Todavia no incluye libLineaDeMira.so 2.0, por lo que no se instala copiando el contenido directamente al telefono.
-
-CAMBIOS DEL CODIGO
-- Conserva el ajuste de camara en primera persona y los perfiles por arma existentes.
-- Añade un hook opcional de CHud::DrawCrossHairs. Si el simbolo existe y AML acepta el hook, el plugin oculta la reticula original con armas compatibles mientras se camina.
-- Reticula_Centro.csa dibuja una cruz central propia.
-- El juego conserva el calculo original de disparo e impactos; esta version no intercepta ni reemplaza esa rutina.
-- Si falta el simbolo o AML no registra el hook, la rutina original no se suprime.
+LINEA DE MIRA ANDROID 2.0 — ARMv7 / GTA SA Android 2.00
 
 CONTENIDO
-- src/mira.cpp, src/mira.h: plugin AML nativo, dirigido a ARMv7 (32 bits).
-- CLEO/*.csa: script de primera persona y reticula central.
-- configs/LineaDeMira.ini: correcciones iniciales por arma.
-- .github/workflows/lineademira.yml: compilacion NDK, comprobacion de arquitectura y empaquetado del ZIP instalable.
+- mods/libLineaDeMira.so: plugin AML ARMv7 compilado.
+- CLEO/FirstPerson_LineaDeMira.csa: control de primera persona.
+- CLEO/Reticula_Centro.csa: cruz central propia.
+- configs/LineaDeMira.ini: ajustes iniciales por arma.
 
-PARA OBTENER EL ZIP INSTALABLE
-El flujo de compilacion debe ejecutarse en un repositorio GitHub con Android NDK. El repositorio conectado disponible es publico; la revision automatica no permitio publicar alli estos fuentes sin permiso explicito. Si autorizas expresamente subir este contenido a la rama lineademira-custom-aim-v2, puedo iniciar la compilacion y entregarte el ZIP ARMv7 resultante. Otra opcion es colocar esta carpeta en tu propio repositorio privado con GitHub Actions.
+CAMBIOS
+- Conserva el ajuste de cámara en primera persona y los perfiles por arma.
+- Intenta ocultar la retícula original con armas compatibles cuando CJ está a pie, y usa la cruz central CLEO como retícula propia.
+- En vehículos o con armas fuera del grupo compatible se conserva la retícula original.
+- Se conserva el cálculo de disparo e impactos del juego base; no se reemplaza el sistema interno de balística.
 
-COMPATIBILIDAD
-No instalar este codigo fuente como si fuera un mod. El plugin solo se dirige a armv7/32 bits y a la version del juego cuya direccion/layout valida la fuente. No es un build arm64. La prueba visual final de la reticula requiere ejecutarlo en el telefono.
+INSTALACIÓN
+1. Cierra GTA SA y guarda una copia de los archivos que ya tienes.
+2. Copia ambos .csa de CLEO/ a la carpeta CLEO del juego.
+3. Copia mods/libLineaDeMira.so a la carpeta mods de AML.
+4. Copia configs/LineaDeMira.ini a la carpeta configs de AML para este plugin.
+5. Abre el juego y prueba a pie con pistolas y subfusiles.
+
+COMPATIBILIDAD Y DIAGNÓSTICO
+- Compilado para ARMv7 (32 bits), GTA SA Android 2.00 + AML. No sirve para un juego arm64.
+- La compilación verificó ELF32/ARM y ausencia de dependencia de libc++_shared.so.
+- El juego aún debe probarse en el teléfono. Revisa LineaDeMira_estado.txt: debe aparecer "Reticula propia activa" para confirmar que pudo ocultar la retícula original. Si el símbolo no está disponible, la mira original seguirá visible.
+- Si el juego no inicia, cierra el juego y retira libLineaDeMira.so y Reticula_Centro.csa para volver al estado anterior.
