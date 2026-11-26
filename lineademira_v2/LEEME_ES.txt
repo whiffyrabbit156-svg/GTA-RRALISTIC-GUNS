@@ -8,7 +8,7 @@ PAQUETE LIMPIO
 - src/: fuentes del plugin y de la retícula.
 
 CAMBIOS
-- Conserva el POV de CJ también al ir en moto o en otros vehículos cuando el modo primera persona está activo; la cámara se ancla a la cabeza del conductor.
+- Mantiene el POV de CJ a pie y al ir en moto o en otros vehículos mientras el mod está cargado; la cámara se ancla a la cabeza del conductor.
 - El botón de apuntado usa la línea de miras del arma solo mientras se mantiene el apuntado. Al soltarlo, vuelve a seguir la orientación normal de cámara.
 - Reemplaza la cruz central negra por una retícula turquesa de cuatro esquinas y punto ámbar.
 - Reduce trabajo por cuadro: guarda el hilo CLEO activo y consulta el esqueleto solo para apuntar o colocar la cámara en vehículo.
@@ -19,7 +19,7 @@ INSTALACIÓN DESDE CERO
 2. Copia mods/libLineaDeMira.so a la carpeta de mods de AML.
 3. Copia ambos .csa a la carpeta CLEO del juego, reemplazando archivos con esos mismos nombres.
 4. Copia configs/LineaDeMira.ini a la carpeta de configuración de AML para este plugin.
-5. Inicia GTA y activa primera persona. Prueba la retícula, apunta y suelta el control, y después entra en una moto y un coche.
+5. Inicia GTA. La primera persona queda activa con el mod cargado; prueba la retícula, apunta y suelta el control, y después entra en una moto y un coche.
 
 COMPATIBILIDAD Y LÍMITES
 - ARMv7 de 32 bits, GTA SA Android 2.00 y AML; no es para arm64.

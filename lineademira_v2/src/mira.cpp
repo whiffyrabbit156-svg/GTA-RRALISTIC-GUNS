@@ -268,7 +268,10 @@ static bool closeTo(Vec a,Vec b,float radius){
 static void align(void*rw){
  if(*cutscene||*mirror||!rw||rw!=sceneData[1])return;
  void*t=activeScript();
- if(!t || *local(t,0)!=1){cache.weapon=nullptr;report("Primera persona desactivada");return;}
+ if(!t){cache.weapon=nullptr;report("Script de primera persona no encontrado");return;}
+ // The requested mode is persistent: the camera stays at CJ's POV on foot
+ // and in vehicles while this script is installed, rather than toggling off.
+ *local(t,0)=1;
  void*ped=player(-1);
  if(!ped||!alive(ped))return;
  bool inCar=vehicle(-1,false)!=nullptr;
