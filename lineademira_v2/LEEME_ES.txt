@@ -1,30 +1,31 @@
-LINEA DE MIRA ANDROID 2.2.0 — ARMv7 / GTA SA Android 2.00 + AML
+LINEA DE MIRA ANDROID 2.2.1 — ARMv7 / GTA SA Android 2.00 + AML
 
 PAQUETE LIMPIO
 - mods/libLineaDeMira.so: plugin AML ARMv7.
 - CLEO/FirstPerson_LineaDeMira.csa: control de primera persona.
 - CLEO/Reticula_Centro.csa: retícula propia en el centro.
-- configs/LineaDeMira.ini: encuadre lateral y vertical por arma.
-- src/: código fuente incluido para consulta.
+- configs/LineaDeMira.ini: encuadre individual para las armas compatibles.
+- src/: fuentes incluidas.
 
-CAMBIOS
-- La cámara conserva sus ejes activos del juego al apuntar; ya no gira siguiendo las miras animadas del arma.
-- La cámara vuelve a anclarse a CJ al soltar el apuntado o caminar, para no conservar el encuadre anterior.
-- El encuadre de las armas compatibles se baja y desplaza a la derecha mediante offsets por arma del INI.
-- Al entrar en un coche o moto, este plugin deja intacta la cámara del vehículo.
-- La retícula propia solo reemplaza la original durante el apuntado en primera persona con armas compatibles.
-- Los disparos compatibles usan el rayo del centro de cámara. La dispersión y el retroceso originales todavía pueden desviar cada disparo.
+LO QUE SE AJUSTÓ TRAS REVISAR EL VIDEO
+- CJ permanece a pie. La motocicleta que aparece alrededor del segundo 30 es un NPC que pasa frente a él; el video no muestra a CJ subiéndose a una moto.
+- Se bajó y desplazó a la derecha el encuadre de las armas compatibles, con ajustes distintos para pistolas, escopetas y rifles.
+- La cámara conserva sus ejes de control al apuntar y se reancla a CJ al dejar de apuntar o caminar.
+- La cámara de vehículos queda bajo el control del juego.
+- La retícula propia reemplaza la original durante el apuntado en primera persona con armas compatibles.
+- Los disparos compatibles siguen el rayo central de cámara. La dispersión y el retroceso aún pueden apartar cada bala del centro.
 
 INSTALACIÓN DESDE CERO
 1. Cierra GTA SA.
 2. Copia mods/libLineaDeMira.so a la carpeta de mods de AML.
-3. Copia los dos archivos .csa a la carpeta CLEO del juego.
+3. Copia ambos .csa a la carpeta CLEO del juego.
 4. Copia configs/LineaDeMira.ini a la carpeta de configuración de AML para este plugin.
-5. Inicia el juego y prueba primero con pistola o subfusil a pie.
+5. Inicia el juego y prueba primero a pie con pistola y luego con rifle.
 
-COMPATIBILIDAD
-- ARMv7 de 32 bits, GTA SA Android 2.00 y AML. No sirve para arm64.
-- El paquete incluye todos los archivos necesarios; no requiere conservar archivos de versiones anteriores.
+COMPATIBILIDAD Y LÍMITES
+- ARMv7 de 32 bits, GTA SA Android 2.00 y AML. No es para arm64.
+- El paquete contiene todo lo necesario; no requiere archivos de versiones anteriores.
 - El plugin escribe LineaDeMira_estado.txt en la carpeta de configuración para registrar qué funciones cargaron.
-- La compilación verifica ELF32/ARM y que no se dependa de libc++_shared.so. La posición visual final debe comprobarse en el teléfono; los modelos 3D originales no se reemplazan.
-- Si el juego no inicia, retira libLineaDeMira.so y ambos .csa para volver al estado anterior.
+- La compilación verifica ELF32/ARM y que no dependa de libc++_shared.so.
+- El video muestra disparos hacia la calle sin un blanco/impacto suficientemente visible para medir precisión píxel por píxel. El modelo 3D original sigue intacto; el encuadre se corrige desde la cámara y requiere una comprobación final dentro del juego.
+- Si el juego no inicia, retira libLineaDeMira.so y ambos .csa.

@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.2.0","whiffyrabbit156",{2,2,0,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.2.1","whiffyrabbit156",{2,2,1,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -112,9 +112,9 @@ static Trim trims[12]={{},{.031f,-.048f,0,-.009f},{},{},{},{},{},{},
                          {-.044f,-.045f,0,-.009f},{},{},{}};
 struct ViewOffset {float right,up;};
 static ViewOffset viewOffsets[12]={
- {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f},
- {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f},
- {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f}
+ {-.020f,.065f},{.031f,.080f},{-.020f,.070f},{-.040f,.080f},
+ {-.035f,.080f},{-.045f,.080f},{-.030f,.075f},{-.035f,.075f},
+ {-.060f,.095f},{-.060f,.095f},{-.030f,.075f},{-.040f,.080f}
 };
 static void loadViewOffsets(const char*dir){
  if(!dir||!openFile||!closeFile)return;
