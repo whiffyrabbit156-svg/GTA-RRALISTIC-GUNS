@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.0","whiffyrabbit156",{2,3,0,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.1","whiffyrabbit156",{2,3,1,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -34,11 +34,6 @@ using Each=void*(*)(void*,void*);
 static void* (*atomics)(void*,Each,void*);
 static void (*idleOriginal)(void*,bool);
 static int (*beginOriginal)(void*);
-// The stock crosshair is a separate HUD pass. Hide it for the same on-foot
-// weapon set covered by Reticula_Centro.csa; that CLEO script draws our own
-// centered reticle. Keep the original pass intact for vehicles and other tools.
-static void (*crosshairOriginal)();
-static bool customReticleReady;
 static bool (*fireOriginal)(void*,void*,Vec*,Vec*,void*,Vec*,Vec*);
 static bool fireAimReady;
 static void* (*setNear)(void*,float);
@@ -244,17 +239,6 @@ static bool fireFromCamera(void*weapon,void*shooter,Vec*start,Vec*barrel,void*ta
  }
  return fireOriginal(weapon,shooter,start,barrel,target,targetPos,driveByPos);
 }
-static bool customReticleActive(){
- if(!customReticleReady)return false;
- void*ped=player(-1);
- if(!ped||!alive(ped)||vehicle(-1,false))return false;
- int id=currentWeaponId(ped);
- return firstPersonMode()&&eligible(ped,id);
-}
-static void drawCrosshair(){
- if(customReticleActive())return;
- if(crosshairOriginal)crosshairOriginal();
-}
 static void apply(void*rw,void*f,const Matrix&out){
  Matrix&frame=field<Matrix>(f,0x10);
  savedMatrix=frame;savedFrame=f;frame=out;updateMatrix(&frame);dirty(f);
@@ -269,9 +253,11 @@ static void align(void*rw){
  if(*cutscene||*mirror||!rw||rw!=sceneData[1])return;
  void*t=activeScript();
  if(!t){cache.weapon=nullptr;report("Script de primera persona no encontrado");return;}
- // The requested mode is persistent: the camera stays at CJ's POV on foot
- // and in vehicles while this script is installed, rather than toggling off.
- *local(t,0)=1;
+ if(*local(t,0)!=1){
+  cache.weapon=nullptr;
+  report("Primera persona desactivada");
+  return;
+ }
  void*ped=player(-1);
  if(!ped||!alive(ped))return;
  bool inCar=vehicle(-1,false)!=nullptr;
@@ -389,13 +375,6 @@ EXPORT void OnModLoad(){
   report(fireAimReady?"Disparo centrado en la reticula":"No se pudo alinear el disparo");
  }else{
   report("Simbolo de disparo no encontrado");
- }
- void* crosshairFn=dlsym(g,"_ZN4CHud14DrawCrossHairsEv");
- if(crosshairFn){
-  customReticleReady=aml->Hook(crosshairFn,(void*)drawCrosshair,(void**)&crosshairOriginal);
-  report(customReticleReady?"Reticula propia activa":"No se pudo sustituir la reticula");
- }else{
-  report("Simbolo de reticula original no encontrado");
  }
  report("Modulo cargado, esperando partida");
 }
