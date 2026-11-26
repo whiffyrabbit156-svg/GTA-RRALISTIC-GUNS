@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.0.0","whiffyrabbit156",{2,0,0,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.1.1","whiffyrabbit156",{2,1,1,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -39,6 +39,8 @@ static int (*beginOriginal)(void*);
 // centered reticle. Keep the original pass intact for vehicles and other tools.
 static void (*crosshairOriginal)();
 static bool customReticleReady;
+static bool (*fireOriginal)(void*,void*,Vec*,Vec*,void*,Vec*,Vec*);
+static bool fireAimReady;
 static void* (*setNear)(void*,float);
 static float previousNear;
 static bool clipped;
@@ -167,49 +169,57 @@ static bool getLine(void*weapon,void*root,void*flash,int id){
  s.front.y-=trim.frontRight;s.front.z+=trim.frontUp;
  cache={weapon,root,flash,id,s,geometric};return true;
 }
-static int previousGun=-1;
-static Vec previousForward;
 static bool eligible(void*ped,int id){
  if(id<22 || id>33)return false;
  // Same flag tested before the stock renderer draws the left-hand copy.
  void*info=weaponInfo(id,static_cast<signed char>(skill(ped)));
  return info && !(field<Byte>(info,0x19)&8);
 }
+static bool firstPersonAiming(int id){
+ if(*cutscene||*mirror)return false;
+ void*ped=player(-1);
+ if(!ped||vehicle(-1,false)||!eligible(ped,id))return false;
+ void*t=activeScript();
+ return t && *local(t,0)==1 && *local(t,31)>0 && *local(t,7)==id;
+}
+static int currentWeaponId(void*ped){
+ if(!ped)return -1;
+ int slot=field<Byte>(ped,0x71c);
+ return slot<13?field<int>(ped,0x5a4+28*slot):-1;
+}
+// Keep the game hit test and muzzle effects, but make the target point follow
+// the center ray shown by our custom reticle during supported first-person aim.
+static bool fireFromCamera(void*weapon,void*shooter,Vec*start,Vec*barrel,void*target,Vec*targetPos,Vec*driveByPos){
+ if(!fireOriginal)return false;
+ void*ped=player(-1);
+ int id=currentWeaponId(ped);
+ if(fireAimReady && shooter==ped && start && targetPos && firstPersonAiming(id)){
+  void*rw=sceneData?sceneData[1]:nullptr;
+  void*f=rw?field<void*>(rw,4):nullptr;
+  if(f && !field<void*>(f,4)){
+   Matrix&camera=field<Matrix>(f,0x10);
+   Vec forward=camera.z;
+   if(normalize(forward)){
+    Vec oldTarget=*targetPos;
+    *targetPos=sum(*start,mul(forward,500.f));
+    bool fired=fireOriginal(weapon,shooter,start,barrel,target,targetPos,driveByPos);
+    *targetPos=oldTarget;
+    return fired;
+   }
+  }
+ }
+ return fireOriginal(weapon,shooter,start,barrel,target,targetPos,driveByPos);
+}
 static bool customReticleActive(){
  if(!customReticleReady)return false;
  void*ped=player(-1);
  if(!ped||!alive(ped)||vehicle(-1,false))return false;
- int slot=field<Byte>(ped,0x71c);
- int id=slot<13?field<int>(ped,0x5a4+28*slot):-1;
- return eligible(ped,id);
+ int id=currentWeaponId(ped);
+ return firstPersonAiming(id);
 }
 static void drawCrosshair(){
  if(customReticleActive())return;
  if(crosshairOriginal)crosshairOriginal();
-}
-static void stabilize(Matrix&view,const Matrix&hand,const Sight&s,int id,bool firing){
- Vec front=point(hand,s.front);
- if(firing && previousGun==id && dot(view.z,previousForward)>.97f){
-  float step=*timeStep;
-  if(!(step>.04f&&step<8.f))step=1.f;
-  Vec change=mul(delta(previousForward,view.z),.24f/(.5f+step*.5f));
-  float squared=dot(change,change);
-  if(squared>.000225f)change=mul(change,.015f/__builtin_sqrtf(squared));
-  Vec forward=sum(view.z,change);
-  if(normalize(forward)){
-   float distance=dot(delta(front,view.pos),view.z);
-   view.z=forward;view.pos=delta(front,mul(forward,distance));
-  }
- }
- previousGun=id;previousForward=view.z;
- // Ease part of the hand roll toward the horizon without moving the front sight.
- Vec level=delta(Vec{0,0,1},mul(view.z,view.z.z));
- Vec up=delta(view.y,mul(view.z,dot(view.y,view.z)));
- if(normalize(level) && dot(level,up)>0)up=sum(mul(up,.80f),mul(level,.20f));
- if(!normalize(up))return;
- Vec side=cross(up,view.z);if(!normalize(side))return;
- view.y=cross(view.z,side);
- view.x=dot(view.x,side)<0?mul(side,-1):side;
 }
 static void apply(void*rw,void*f,const Matrix&out){
  Matrix&frame=field<Matrix>(f,0x10);
@@ -224,7 +234,7 @@ static bool closeTo(Vec a,Vec b,float radius){
 static void align(void*rw){
  if(*cutscene||*mirror||!rw||rw!=sceneData[1])return;
  void*t=activeScript();
- if(!t || *local(t,0)!=1){cache.weapon=nullptr;previousGun=-1;report("Primera persona desactivada");return;}
+ if(!t || *local(t,0)!=1){cache.weapon=nullptr;report("Primera persona desactivada");return;}
  void*ped=player(-1);
  if(!ped||!alive(ped))return;
  bool inCar=vehicle(-1,false)!=nullptr;
@@ -232,7 +242,7 @@ static void align(void*rw){
  int id=slot<13?field<int>(ped,0x5a4+28*slot):-1;
  int permission=!inCar && eligible(ped,id)?id:0;
  int&last=*local(t,30),&zoom=*local(t,31);
- if(last!=permission||!permission){zoom=0;*local(t,8)=0;previousGun=-1;}
+ if(last!=permission||!permission){zoom=0;*local(t,8)=0;}
  last=permission;
  void*f=field<void*>(rw,4);
  if(!f||field<void*>(f,4))return;
@@ -252,27 +262,23 @@ static void align(void*rw){
   if(U(i)<U(count) && closeTo(m[i].pos,origin,2.5f))head=m[i].pos;
  }
  bool aiming=permission && zoom>0 && id==*local(t,7);
- if(aiming && m && field<int>(ped,0x5a8+28*slot)!=2){
-  int i=indexOf(h,24);
-  void*w=field<void*>(ped,0x500);
-  if(w && field<Byte>(w,0)==2 && U(i)<U(count) && closeTo(m[i].pos,head,1.6f)){
-   void*root=field<void*>(w,4);Matrix out;
-   if(root && getLine(w,root,field<void*>(ped,0x504),id) && place(m[i],cache.line,frame,out) && closeTo(out.pos,head,1.25f)){
-    stabilize(out,m[i],cache.line,id,field<int>(ped,0x5a8+28*slot)==1);
-    apply(rw,f,out);
-    report(cache.geometric?"Mira activa: malla":"Mira activa: perfil",id);return;
-   }
+ if(aiming){
+  // Keep the camera's live axes from the game. Basing them on the animated
+  // weapon sights made the view lag behind touch input and stay locked when
+  // CJ moved. The Fire hook sends shots along this same camera axis.
+  Matrix out=frame;
+  Vec eye=sum(sum(head,mul(frame.z,.10f)),{0,0,.035f});
+  if(closeTo(eye,head,1.25f)){
+   out.pos=eye;apply(rw,f,out);
+   report("Camara libre: reticula alineada",id);return;
   }
  }
- previousGun=-1;
- // Never pass a detached third-person position through during reload, normal aim
- // or unavailable weapon geometry. Leave first-person positions already near the eyes intact.
+ // Re-anchor every frame. This avoids carrying the prior aiming eye point into
+ // movement, weapon changes, or release of the touch aim control.
  Vec ahead=frame.z;
  if(normalize(ahead)){
-  Vec eye=sum(sum(head,mul(ahead,.13f)),{0,0,.035f});
-  if(!closeTo(frame.pos,eye,.47f)||dot(delta(frame.pos,head),ahead)<-.09f){
-   Matrix out=frame;out.pos=eye;apply(rw,f,out);
-  }
+  Vec eye=sum(sum(head,mul(ahead,.10f)),{0,0,.035f});
+  Matrix out=frame;out.pos=eye;apply(rw,f,out);
  }
  report(permission?"Primera persona a la altura de CJ":"Primera persona, control de mira bloqueado",id);
 }
@@ -331,6 +337,13 @@ EXPORT void OnModLoad(){
  BIND(mirror,"_ZN8CMirrors20bRenderingReflectionE")
  if(!aml->Hook(idleFn,(void*)idle,(void**)&idleOriginal)||!aml->Hook(beginFn,(void*)beginFrame,(void**)&beginOriginal)){
   report("AML no pudo registrar la camara");return;
+ }
+ void* fireFn=dlsym(g,"_ZN7CWeapon4FireEP7CEntityP7CVectorS3_S1_S3_S3_");
+ if(fireFn){
+  fireAimReady=aml->Hook(fireFn,(void*)fireFromCamera,(void**)&fireOriginal);
+  report(fireAimReady?"Disparo centrado en la reticula":"No se pudo alinear el disparo");
+ }else{
+  report("Simbolo de disparo no encontrado");
  }
  void* crosshairFn=dlsym(g,"_ZN4CHud14DrawCrossHairsEv");
  if(crosshairFn){
