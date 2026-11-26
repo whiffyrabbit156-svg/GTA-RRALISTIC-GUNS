@@ -1,25 +1,24 @@
-LINEA DE MIRA ANDROID 2.3.0 — ARMv7 / GTA SA Android 2.00 + AML
+LINEA DE MIRA ANDROID 2.3.1 — ARMv7 / GTA SA Android 2.00 + AML
 
 PAQUETE LIMPIO
 - mods/libLineaDeMira.so: plugin AML ARMv7.
 - CLEO/FirstPerson_LineaDeMira.csa: cámara en primera persona.
-- CLEO/Reticula_Centro.csa: retícula nueva de cuatro esquinas y punto central.
 - configs/LineaDeMira.ini: encuadre por arma compatible.
-- src/: fuentes del plugin y de la retícula.
+- src/: fuentes del plugin.
 
 CAMBIOS
 - Mantiene el POV de CJ a pie y al ir en moto o en otros vehículos mientras el mod está cargado; la cámara se ancla a la cabeza del conductor.
 - El botón de apuntado usa la línea de miras del arma solo mientras se mantiene el apuntado. Al soltarlo, vuelve a seguir la orientación normal de cámara.
-- Reemplaza la cruz central negra por una retícula turquesa de cuatro esquinas y punto ámbar.
+- Conserva la retícula original del juego; no instala ni dibuja una retícula personalizada.
 - Reduce trabajo por cuadro: guarda el hilo CLEO activo y consulta el esqueleto solo para apuntar o colocar la cámara en vehículo.
 - Los disparos compatibles siguen el rayo de cámara durante el apuntado; la dispersión y el retroceso del juego aún pueden desviar cada bala.
 
 INSTALACIÓN DESDE CERO
 1. Cierra GTA SA.
 2. Copia mods/libLineaDeMira.so a la carpeta de mods de AML.
-3. Copia ambos .csa a la carpeta CLEO del juego, reemplazando archivos con esos mismos nombres.
+3. Copia `FirstPerson_LineaDeMira.csa` a la carpeta CLEO del juego.
 4. Copia configs/LineaDeMira.ini a la carpeta de configuración de AML para este plugin.
-5. Inicia GTA. La primera persona queda activa con el mod cargado; prueba la retícula, apunta y suelta el control, y después entra en una moto y un coche.
+5. Inicia GTA. Activa o desactiva la primera persona con su control. Mantén 🔄 para apuntar por la mirilla y suéltalo para regresar a la orientación normal de la cámara.
 
 COMPATIBILIDAD Y LÍMITES
 - ARMv7 de 32 bits, GTA SA Android 2.00 y AML; no es para arm64.
@@ -27,4 +26,4 @@ COMPATIBILIDAD Y LÍMITES
 - El plugin registra el estado en LineaDeMira_estado.txt dentro de la carpeta de configuración.
 - Compilación verificada como ELF32/ARM, sin dependencia de libc++_shared.so.
 - La posición final de la cámara en cada modelo de vehículo necesita comprobarse en el juego; el modelo 3D de las armas sigue siendo el original.
-- Si el juego no inicia, retira libLineaDeMira.so y ambos .csa.
+- Si el juego no inicia, retira `libLineaDeMira.so` y `FirstPerson_LineaDeMira.csa`.
