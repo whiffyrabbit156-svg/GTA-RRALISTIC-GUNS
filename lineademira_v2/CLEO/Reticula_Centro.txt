@@ -1,0 +1,26 @@
+{$CLEO .cs}
+
+03A4: script_name 'ReticulaV3'
+
+:RETICLE_LOOP
+0001: wait 0 ms
+00D6: if 0
+056D: actor $PLAYER_ACTOR defined
+004D: jump_if_false @RETICLE_LOOP
+0470: 1@ = actor $PLAYER_ACTOR current_weapon
+00D6: if 0
+80DF: not actor $PLAYER_ACTOR driving
+0029: 1@ >= 22
+8031: not 1@ >= 34
+004D: jump_if_false @RETICLE_LOOP
+03F0: enable_text_draw 1
+038E: draw_box_position 311.0 214.0 size 5.0 1.5 RGBA 0 230 255 230
+038E: draw_box_position 307.0 218.0 size 1.5 5.0 RGBA 0 230 255 230
+038E: draw_box_position 329.0 214.0 size 5.0 1.5 RGBA 0 230 255 230
+038E: draw_box_position 333.0 218.0 size 1.5 5.0 RGBA 0 230 255 230
+038E: draw_box_position 311.0 234.0 size 5.0 1.5 RGBA 0 230 255 230
+038E: draw_box_position 307.0 230.0 size 1.5 5.0 RGBA 0 230 255 230
+038E: draw_box_position 329.0 234.0 size 5.0 1.5 RGBA 0 230 255 230
+038E: draw_box_position 333.0 230.0 size 1.5 5.0 RGBA 0 230 255 230
+038E: draw_box_position 320.0 224.0 size 2.5 2.5 RGBA 255 190 40 255
+0002: jump @RETICLE_LOOP

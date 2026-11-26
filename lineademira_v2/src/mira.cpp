@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.2.1","whiffyrabbit156",{2,2,1,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.0","whiffyrabbit156",{2,3,0,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -71,13 +71,21 @@ static void prepareReport(const char*dir){
   if(n<=0||n>=int(sizeof(reportPath)))reportPath[0]=0;
  }
 }
+static void* cachedFpScript;
+static bool isFpScript(void*t){
+ if(!t)return false;
+ const char*name=&field<char>(t,8);constexpr char tag[]="fpsg2";
+ int n=0;while(n<5 && (name[n]|32)==tag[n])++n;
+ return n==5&&name[5]==0;
+}
 static void* activeScript(){
+ // The CLEO thread stays allocated while this mod runs. Reuse it instead of
+ // walking the whole active-script list on every camera/HUD callback.
+ if(isFpScript(cachedFpScript))return cachedFpScript;
+ cachedFpScript=nullptr;
  void*t=*threads;
  for(int count=0;t && count<512;++count,t=field<void*>(t,0)){
-  const char*name=&field<char>(t,8);
-  constexpr char tag[]="fpsg2";
-  int n=0;while(n<5 && (name[n]|32)==tag[n])++n;
-  if(n==5 && name[5]==0)return t;
+  if(isFpScript(t)){cachedFpScript=t;return t;}
  }
  return nullptr;
 }
@@ -205,6 +213,9 @@ static bool firstPersonAiming(int id){
  void*t=activeScript();
  return t && *local(t,0)==1 && *local(t,31)>0 && *local(t,7)==id;
 }
+static bool firstPersonMode(){
+ void*t=activeScript();return t&&*local(t,0)==1;
+}
 static int currentWeaponId(void*ped){
  if(!ped)return -1;
  int slot=field<Byte>(ped,0x71c);
@@ -238,7 +249,7 @@ static bool customReticleActive(){
  void*ped=player(-1);
  if(!ped||!alive(ped)||vehicle(-1,false))return false;
  int id=currentWeaponId(ped);
- return firstPersonAiming(id);
+ return firstPersonMode()&&eligible(ped,id);
 }
 static void drawCrosshair(){
  if(customReticleActive())return;
@@ -267,37 +278,40 @@ static void align(void*rw){
  int&last=*local(t,30),&zoom=*local(t,31);
  if(last!=permission||!permission){zoom=0;*local(t,8)=0;}
  last=permission;
- // Do not let the on-foot first-person camera hook drag the view to CJ's head
- // after entering a car or motorcycle. Vehicle camera remains game-controlled.
- if(inCar){report("Camara original: vehiculo",id);return;}
  void*f=field<void*>(rw,4);
  if(!f||field<void*>(f,4))return;
  const Matrix&frame=field<Matrix>(f,0x10);
  void*body=field<void*>(ped,0x14);
  Vec origin=body?field<Matrix>(body,0).pos:field<Vec>(ped,4);
  Vec head=sum(origin,{0,0,.62f});
- void*clump=field<void*>(ped,0x18);
- void*h=clump&&field<Byte>(clump,0)==2?hierarchy(clump):nullptr;
- Matrix*m=nullptr;int count=0;
- if(h && field<void*>(h,16)){
-  count=field<int>(h,4);
-  if(count>0 && count<=256)m=bones(h);
- }
- if(m){
-  int i=indexOf(h,5);
-  if(U(i)<U(count) && closeTo(m[i].pos,origin,2.5f))head=m[i].pos;
- }
  bool aiming=permission && zoom>0 && id==*local(t,7);
+ void*clump=field<void*>(ped,0x18);
+ void*h=nullptr;Matrix*m=nullptr;int count=0;
+ // Bone arrays are only needed for ADS alignment and for placing the camera
+ // at the driver's head. Walking on foot uses a cheap pelvis-height estimate.
+ if(aiming||inCar){
+  h=clump&&field<Byte>(clump,0)==2?hierarchy(clump):nullptr;
+  if(h && field<void*>(h,16)){
+   count=field<int>(h,4);
+   if(count>0 && count<=256)m=bones(h);
+  }
+  if(m){int i=indexOf(h,5);if(U(i)<U(count)&&closeTo(m[i].pos,origin,2.5f))head=m[i].pos;}
+ }
  if(aiming){
-  // Keep the camera's live axes from the game. Basing them on the animated
-  // weapon sights made the view lag behind touch input and stay locked when
-  // CJ moved. The Fire hook sends shots along this same camera axis.
   Matrix out=frame;
   ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
-  Vec eye=sum(sum(sum(head,mul(frame.z,.10f)),mul(frame.x,v.right)),{0,0,v.up});
-  if(closeTo(eye,head,1.25f)){
-   out.pos=eye;apply(rw,f,out);
-   report("Camara libre: reticula alineada",id);return;
+  int handIndex=h?indexOf(h,24):-1;
+  void*w=field<void*>(ped,0x500);
+  if(m && w && field<Byte>(w,0)==2 && U(handIndex)<U(count) &&
+     closeTo(m[handIndex].pos,head,1.6f) && field<int>(ped,0x5a8+28*slot)!=2){
+   void*root=field<void*>(w,4);Matrix sightView;
+   if(root&&getLine(w,root,field<void*>(ped,0x504),id)&&place(m[handIndex],cache.line,frame,sightView)){
+    // Aim by the weapon sights only while the aim control is held. Position
+    // remains at CJ's eyes; releasing the control returns to the live camera.
+    out.x=sightView.x;out.y=sightView.y;out.z=sightView.z;
+    out.pos=sum(sum(sum(head,mul(out.z,.10f)),mul(out.x,v.right)),{0,0,v.up});
+    if(closeTo(out.pos,head,1.25f)){apply(rw,f,out);report("Apuntado por mirilla",id);return;}
+   }
   }
  }
  // Re-anchor every frame. This avoids carrying the prior aiming eye point into
