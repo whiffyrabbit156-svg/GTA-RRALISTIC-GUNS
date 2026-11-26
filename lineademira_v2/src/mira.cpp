@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.1.1","whiffyrabbit156",{2,1,1,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.2.0","whiffyrabbit156",{2,2,0,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -110,6 +110,29 @@ static void* findMesh(void* a,void* context){
 struct Trim {float rearRight,rearUp,frontRight,frontUp;};
 static Trim trims[12]={{},{.031f,-.048f,0,-.009f},{},{},{},{},{},{},
                          {-.044f,-.045f,0,-.009f},{},{},{}};
+struct ViewOffset {float right,up;};
+static ViewOffset viewOffsets[12]={
+ {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f},
+ {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f},
+ {-.035f,.075f},{-.035f,.075f},{-.035f,.075f},{-.035f,.075f}
+};
+static void loadViewOffsets(const char*dir){
+ if(!dir||!openFile||!closeFile)return;
+ void*c=dlopen("libc.so",2);if(!c)return;
+ auto fmt=sym<int(*)(char*,U,const char*,...)>(c,"snprintf");
+ auto line=sym<char*(*)(char*,int,void*)>(c,"fgets");
+ auto parse=sym<int(*)(const char*,const char*,...)>(c,"sscanf");
+ if(!fmt||!line||!parse)return;
+ char buf[256];int n=fmt(buf,sizeof(buf),"%s/LineaDeMira.ini",dir);
+ if(n<=0||n>=int(sizeof(buf)))return;
+ void*f=openFile(buf,"r");if(!f)return;
+ while(line(buf,sizeof(buf),f)){
+  int id;ViewOffset v;
+  if(parse(buf,"%d %f %f",&id,&v.right,&v.up)!=3||id<22||id>33)continue;
+  if(__builtin_fabsf(v.right)<=.20f&&__builtin_fabsf(v.up)<=.20f)viewOffsets[id-22]=v;
+ }
+ closeFile(f);
+}
 static void loadTrims(const char*dir){
  if(!dir||!openFile||!closeFile)return;
  void*c=dlopen("libc.so",2);if(!c)return;
@@ -244,6 +267,9 @@ static void align(void*rw){
  int&last=*local(t,30),&zoom=*local(t,31);
  if(last!=permission||!permission){zoom=0;*local(t,8)=0;}
  last=permission;
+ // Do not let the on-foot first-person camera hook drag the view to CJ's head
+ // after entering a car or motorcycle. Vehicle camera remains game-controlled.
+ if(inCar){report("Camara original: vehiculo",id);return;}
  void*f=field<void*>(rw,4);
  if(!f||field<void*>(f,4))return;
  const Matrix&frame=field<Matrix>(f,0x10);
@@ -267,7 +293,8 @@ static void align(void*rw){
   // weapon sights made the view lag behind touch input and stay locked when
   // CJ moved. The Fire hook sends shots along this same camera axis.
   Matrix out=frame;
-  Vec eye=sum(sum(head,mul(frame.z,.10f)),{0,0,.035f});
+  ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
+  Vec eye=sum(sum(sum(head,mul(frame.z,.10f)),mul(frame.x,v.right)),{0,0,v.up});
   if(closeTo(eye,head,1.25f)){
    out.pos=eye;apply(rw,f,out);
    report("Camara libre: reticula alineada",id);return;
@@ -277,7 +304,8 @@ static void align(void*rw){
  // movement, weapon changes, or release of the touch aim control.
  Vec ahead=frame.z;
  if(normalize(ahead)){
-  Vec eye=sum(sum(head,mul(ahead,.10f)),{0,0,.035f});
+  ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
+  Vec eye=sum(sum(sum(head,mul(ahead,.10f)),mul(frame.x,v.right)),{0,0,v.up});
   Matrix out=frame;out.pos=eye;apply(rw,f,out);
  }
  report(permission?"Primera persona a la altura de CJ":"Primera persona, control de mira bloqueado",id);
@@ -310,7 +338,7 @@ EXPORT void OnModLoad(){
  if(!get)return;
  auto aml=static_cast<Loader*>(get("AMLInterface"));if(!aml)return;
  prepareReport(aml->GetConfigPath());
- loadTrims(aml->GetConfigPath());
+ loadViewOffsets(aml->GetConfigPath());
  void*idleFn=dlsym(g,"_Z4IdlePvb"),*beginFn=dlsym(g,"_Z19psCameraBeginUpdateP8RwCamera");
  void*cam=dlsym(g,"TheCamera");
  if(!cam)return;
