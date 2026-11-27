@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.1","whiffyrabbit156",{2,3,1,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.2","whiffyrabbit156",{2,3,2,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -276,42 +276,34 @@ static void align(void*rw){
  bool aiming=permission && zoom>0 && id==*local(t,7);
  void*clump=field<void*>(ped,0x18);
  void*h=nullptr;Matrix*m=nullptr;int count=0;
- // Bone arrays are only needed for ADS alignment and for placing the camera
- // at the driver's head. Walking on foot uses a cheap pelvis-height estimate.
- if(aiming||inCar){
-  h=clump&&field<Byte>(clump,0)==2?hierarchy(clump):nullptr;
-  if(h && field<void*>(h,16)){
-   count=field<int>(h,4);
-   if(count>0 && count<=256)m=bones(h);
-  }
-  if(m){int i=indexOf(h,5);if(U(i)<U(count)&&closeTo(m[i].pos,origin,2.5f))head=m[i].pos;}
+ // Read the animated head position every active POV frame. This makes the
+ // camera follow crouching and head movement instead of trailing the torso.
+ h=clump&&field<Byte>(clump,0)==2?hierarchy(clump):nullptr;
+ if(h && field<void*>(h,16)){
+  count=field<int>(h,4);
+  if(count>0 && count<=256)m=bones(h);
  }
- if(aiming){
-  Matrix out=frame;
-  ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
-  int handIndex=h?indexOf(h,24):-1;
-  void*w=field<void*>(ped,0x500);
-  if(m && w && field<Byte>(w,0)==2 && U(handIndex)<U(count) &&
-     closeTo(m[handIndex].pos,head,1.6f) && field<int>(ped,0x5a8+28*slot)!=2){
-   void*root=field<void*>(w,4);Matrix sightView;
-   if(root&&getLine(w,root,field<void*>(ped,0x504),id)&&place(m[handIndex],cache.line,frame,sightView)){
-    // Aim by the weapon sights only while the aim control is held. Position
-    // remains at CJ's eyes; releasing the control returns to the live camera.
-    out.x=sightView.x;out.y=sightView.y;out.z=sightView.z;
-    out.pos=sum(sum(sum(head,mul(out.z,.10f)),mul(out.x,v.right)),{0,0,v.up});
-    if(closeTo(out.pos,head,1.25f)){apply(rw,f,out);report("Apuntado por mirilla",id);return;}
-   }
-  }
+ if(m){
+  int i=indexOf(h,5);
+  if(U(i)<U(count)&&closeTo(m[i].pos,origin,2.5f))head=m[i].pos;
  }
- // Re-anchor every frame. This avoids carrying the prior aiming eye point into
- // movement, weapon changes, or release of the touch aim control.
+ // Keep the camera's live game axes during ADS. Building the camera rotation
+ // from the weapon mesh made the view jump on the Desert Eagle and while crouched.
+ // Fire is redirected along this same live camera ray while ADS is held.
  Vec ahead=frame.z;
  if(normalize(ahead)){
-  ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
-  Vec eye=sum(sum(sum(head,mul(ahead,.10f)),mul(frame.x,v.right)),{0,0,v.up});
-  Matrix out=frame;out.pos=eye;apply(rw,f,out);
+  if(!inCar){
+   // Push the view point past the back of CJ's head to eye level.
+   Vec eye=sum(sum(head,mul(ahead,.18f)),{0,0,.025f});
+   Matrix out=frame;out.pos=eye;apply(rw,f,out);
+  }else{
+   // Preserve the vehicle camera position and framing already accepted.
+   ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
+   Vec eye=sum(sum(sum(head,mul(ahead,.10f)),mul(frame.x,v.right)),{0,0,v.up});
+   Matrix out=frame;out.pos=eye;apply(rw,f,out);
+  }
  }
- report(permission?"Primera persona a la altura de CJ":"Primera persona, control de mira bloqueado",id);
+ report(aiming?"Apuntado por reticula nativa":"Primera persona a la altura de CJ",id);
 }
 static void restore(){
  if(!savedFrame)return;
