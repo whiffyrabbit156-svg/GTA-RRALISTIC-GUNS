@@ -34,8 +34,8 @@ jobs:
           mkdir -p package/src
           cp lineademira_v2/src/mira.cpp lineademira_v2/src/mira.h package/src/
           cd package
-          zip -qr ../LineaDeMira_Android_2.3.1_ARMv7.zip .
+          zip -qr ../LineaDeMira_Android_2.3.2_ARMv7.zip .
       - uses: actions/upload-artifact@v4
         with:
-          name: LineaDeMira_Android_2.3.1_ARMv7
-          path: LineaDeMira_Android_2.3.1_ARMv7.zip
+          name: LineaDeMira_Android_2.3.2_ARMv7
+          path: LineaDeMira_Android_2.3.2_ARMv7.zip
