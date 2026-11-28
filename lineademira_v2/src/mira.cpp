@@ -311,7 +311,9 @@ static void align(void*rw){
   // Measure the weapon sight once when 🔄 becomes active, then keep this
   // correction fixed for the hold. The live camera still follows touch input.
   if(!aimState.valid || aimState.ped!=ped || aimState.weapon!=id){
-   aimState.valid=false;
+   // Safe fallback: retain stock camera axes, which keeps aiming functional
+   // even when a weapon has no reliable sight geometry.
+   aimState={true,ped,id,frame,frame};
    int handIndex=h?indexOf(h,24):-1;
    void*w=field<void*>(ped,0x500);
    if(m && w && field<Byte>(w,0)==2 && U(handIndex)<U(count) &&
@@ -319,7 +321,7 @@ static void align(void*rw){
     void*root=field<void*>(w,4);Matrix sightView;
     if(root && getLine(w,root,field<void*>(ped,0x504),id) &&
        place(m[handIndex],cache.line,frame,sightView)){
-     aimState={true,ped,id,frame,sightView};
+     aimState.sight=sightView;
     }
    }
   }
