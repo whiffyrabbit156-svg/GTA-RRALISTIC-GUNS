@@ -15,7 +15,7 @@ struct Loader {
  virtual bool Hook(void*,void*,void**);
 };
 struct Info {char id[48],name[48],version[24],author[48];unsigned short parts[4];};
-static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.2","whiffyrabbit156",{2,3,2,0}};
+static Info info={"mod.whiffyrabbit156.lineademira","Linea de Mira Android","2.3.3","whiffyrabbit156",{2,3,3,0}};
 EXPORT Info* __GetModInfo(){return &info;}
 EXPORT const char* __INeedASpecificGame(){return "com.rockstargames.gtasa";}
 template<class T> static T& field(void* p,U n){return *reinterpret_cast<T*>(static_cast<Byte*>(p)+n);}
@@ -156,6 +156,25 @@ static void loadTrims(const char*dir){
 }
 struct Cache{void*weapon;void*root;void*flash;int id;Sight line;bool geometric;};
 static Cache cache;
+// Cache the sight-to-camera rotation at ADS start. Applying that fixed correction
+// to the live camera axes keeps touch look responsive without weapon-animation jitter.
+struct AimState{bool valid;void*ped;int weapon;Matrix base;Matrix sight;};
+static AimState aimState{};
+static Vec followCamera(Vec v,const Matrix&base,const Matrix&live){
+ return sum(sum(mul(live.x,dot(base.x,v)),mul(live.y,dot(base.y,v))),mul(live.z,dot(base.z,v)));
+}
+static bool aimAxes(const Matrix&live,Matrix&out){
+ out=live;
+ out.z=followCamera(aimState.sight.z,aimState.base,live);
+ out.x=followCamera(aimState.sight.x,aimState.base,live);
+ if(!normalize(out.z))return false;
+ out.x=delta(out.x,mul(out.z,dot(out.x,out.z)));
+ if(!normalize(out.x))return false;
+ out.y=cross(out.z,out.x);
+ if(!normalize(out.y))return false;
+ out.x=cross(out.y,out.z);
+ return normalize(out.x);
+}
 static bool marker(void*flash,void*root,Vec& position){
  if(!flash)return false;
  position={};
@@ -206,7 +225,8 @@ static bool firstPersonAiming(int id){
  void*ped=player(-1);
  if(!ped||vehicle(-1,false)||!eligible(ped,id))return false;
  void*t=activeScript();
- return t && *local(t,0)==1 && *local(t,31)>0 && *local(t,7)==id;
+ return t && *local(t,0)==1 && *local(t,31)>0 && *local(t,7)==id &&
+        aimState.valid && aimState.ped==ped && aimState.weapon==id;
 }
 static bool firstPersonMode(){
  void*t=activeScript();return t&&*local(t,0)==1;
@@ -250,25 +270,25 @@ static bool closeTo(Vec a,Vec b,float radius){
  Vec d=delta(a,b);return dot(d,d)<radius*radius;
 }
 static void align(void*rw){
- if(*cutscene||*mirror||!rw||rw!=sceneData[1])return;
+ if(*cutscene||*mirror||!rw||rw!=sceneData[1]){aimState.valid=false;return;}
  void*t=activeScript();
- if(!t){cache.weapon=nullptr;report("Script de primera persona no encontrado");return;}
+ if(!t){cache.weapon=nullptr;aimState.valid=false;report("Script de primera persona no encontrado");return;}
  if(*local(t,0)!=1){
-  cache.weapon=nullptr;
+  cache.weapon=nullptr;aimState.valid=false;
   report("Primera persona desactivada");
   return;
  }
  void*ped=player(-1);
- if(!ped||!alive(ped))return;
+ if(!ped||!alive(ped)){aimState.valid=false;return;}
  bool inCar=vehicle(-1,false)!=nullptr;
  int slot=field<Byte>(ped,0x71c);
  int id=slot<13?field<int>(ped,0x5a4+28*slot):-1;
  int permission=!inCar && eligible(ped,id)?id:0;
  int&last=*local(t,30),&zoom=*local(t,31);
- if(last!=permission||!permission){zoom=0;*local(t,8)=0;}
+ if(last!=permission||!permission){zoom=0;*local(t,8)=0;aimState.valid=false;}
  last=permission;
  void*f=field<void*>(rw,4);
- if(!f||field<void*>(f,4))return;
+ if(!f||field<void*>(f,4)){aimState.valid=false;return;}
  const Matrix&frame=field<Matrix>(f,0x10);
  void*body=field<void*>(ped,0x14);
  Vec origin=body?field<Matrix>(body,0).pos:field<Vec>(ped,4);
@@ -276,8 +296,7 @@ static void align(void*rw){
  bool aiming=permission && zoom>0 && id==*local(t,7);
  void*clump=field<void*>(ped,0x18);
  void*h=nullptr;Matrix*m=nullptr;int count=0;
- // Read the animated head position every active POV frame. This makes the
- // camera follow crouching and head movement instead of trailing the torso.
+ // Follow the animated head so POV tracks crouching and head movement.
  h=clump&&field<Byte>(clump,0)==2?hierarchy(clump):nullptr;
  if(h && field<void*>(h,16)){
   count=field<int>(h,4);
@@ -287,23 +306,48 @@ static void align(void*rw){
   int i=indexOf(h,5);
   if(U(i)<U(count)&&closeTo(m[i].pos,origin,2.5f))head=m[i].pos;
  }
- // Keep the camera's live game axes during ADS. Building the camera rotation
- // from the weapon mesh made the view jump on the Desert Eagle and while crouched.
- // Fire is redirected along this same live camera ray while ADS is held.
+ if(!aiming)aimState.valid=false;
+ if(aiming){
+  // Measure the weapon sight once when 🔄 becomes active, then keep this
+  // correction fixed for the hold. The live camera still follows touch input.
+  if(!aimState.valid || aimState.ped!=ped || aimState.weapon!=id){
+   aimState.valid=false;
+   int handIndex=h?indexOf(h,24):-1;
+   void*w=field<void*>(ped,0x500);
+   if(m && w && field<Byte>(w,0)==2 && U(handIndex)<U(count) &&
+      closeTo(m[handIndex].pos,head,1.6f) && field<int>(ped,0x5a8+28*slot)!=2){
+    void*root=field<void*>(w,4);Matrix sightView;
+    if(root && getLine(w,root,field<void*>(ped,0x504),id) &&
+       place(m[handIndex],cache.line,frame,sightView)){
+     aimState={true,ped,id,frame,sightView};
+    }
+   }
+  }
+  Matrix out;
+  if(aimState.valid && aimAxes(frame,out)){
+   Vec ahead=out.z;
+   if(normalize(ahead)){
+    // Place the camera at the raised eye point while the stock reticle
+    // and the redirected shot ray use the same ADS orientation.
+    out.pos=sum(sum(head,mul(ahead,.18f)),{0,0,.09f});
+    if(closeTo(out.pos,head,1.25f)){apply(rw,f,out);report("Apuntado por mirilla",id);return;}
+   }
+  }
+ }
  Vec ahead=frame.z;
  if(normalize(ahead)){
   if(!inCar){
-   // Push the view point past the back of CJ's head to eye level.
-   Vec eye=sum(sum(head,mul(ahead,.18f)),{0,0,.025f});
+   // Slightly raise the first-person eye point while keeping it ahead of CJ's head.
+   Vec eye=sum(sum(head,mul(ahead,.18f)),{0,0,.09f});
    Matrix out=frame;out.pos=eye;apply(rw,f,out);
   }else{
-   // Preserve the vehicle camera position and framing already accepted.
+   // Vehicle framing is unchanged.
    ViewOffset v=(id>=22&&id<=33)?viewOffsets[id-22]:ViewOffset{0,.035f};
    Vec eye=sum(sum(sum(head,mul(ahead,.10f)),mul(frame.x,v.right)),{0,0,v.up});
    Matrix out=frame;out.pos=eye;apply(rw,f,out);
   }
  }
- report(aiming?"Apuntado por reticula nativa":"Primera persona a la altura de CJ",id);
+ report(permission?"Primera persona a la altura de CJ":"Primera persona, control de mira bloqueado",id);
 }
 static void restore(){
  if(!savedFrame)return;
