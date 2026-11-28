@@ -1,4 +1,4 @@
-LINEA DE MIRA ANDROID 2.3.2 — ARMv7 / GTA SA Android 2.00 + AML
+LINEA DE MIRA ANDROID 2.3.3 — ARMv7 / GTA SA Android 2.00 + AML
 
 PAQUETE LIMPIO
 - mods/libLineaDeMira.so: plugin AML ARMv7.
@@ -8,9 +8,10 @@ PAQUETE LIMPIO
 
 CAMBIOS
 - La primera persona respeta el interruptor del script: solo se mantiene activa cuando la enciendes, y se desactiva al apagarla. En vehículos, la cámara se coloca a la altura de CJ mientras el modo está activo.
-- El botón de apuntado mantiene los ejes normales de la cámara; los disparos durante ADS siguen el rayo de cámara y el control de cámara no se queda pegado al arma al soltarlo.
+- La cámara a pie se eleva ligeramente hasta el punto de vista de CJ; en vehículos conserva el encuadre anterior.
+- 🔄 activa el apuntado solo mientras se mantiene pulsado. La alineación de mirilla se mide una vez por pulsación y sigue los movimientos de cámara sin vibrar con las animaciones del arma. Al soltar, se borra la alineación y vuelve la cámara libre.
 - Conserva la retícula original del juego; no instala ni dibuja una retícula personalizada.
-- El POV a pie sigue la posición animada de la cabeza, incluso al agacharse. En esta versión se consulta el esqueleto activo para seguir ese movimiento.
+- El POV a pie sigue la posición animada de la cabeza, incluso al agacharse. Se conserva la retícula original y los disparos ADS usan el mismo eje de cámara.
 - Los disparos compatibles siguen el rayo de cámara durante el apuntado; la dispersión y el retroceso del juego aún pueden desviar cada bala.
 
 INSTALACIÓN DESDE CERO
